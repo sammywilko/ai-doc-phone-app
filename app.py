@@ -4757,14 +4757,44 @@ Return ONLY valid JSON with:
 
 @app.route("/api/generate-broll", methods=["POST"])
 def api_generate_broll():
-    """Placeholder for B-roll video generation (Veo not yet integrated)."""
+    """Generate B-roll video description via Vertex AI, with Veo generation when available."""
     try:
         data = request.get_json()
         prompt = data.get("prompt", "")
+        if not prompt:
+            return jsonify({"error": "prompt is required"}), 400
+
+        # Generate a detailed visual description for the B-roll
+        broll_model = GenerativeModel("gemini-2.0-flash-001")
+        response = broll_model.generate_content(
+            f"""You are a documentary cinematographer. Create a detailed B-roll shot description for:
+
+"{prompt}"
+
+Return valid JSON with:
+- "shot_description": string (2-3 sentences describing the ideal B-roll footage)
+- "camera_movement": string (e.g. "slow push-in", "static wide", "tracking shot")
+- "duration_seconds": number (suggested duration, 5-30 seconds)
+- "visual_style": string (e.g. "cinematic", "observational", "aerial")
+- "lighting": string (e.g. "natural daylight", "golden hour", "low-key dramatic")
+""",
+            generation_config={"response_mime_type": "application/json", "temperature": 0.7}
+        )
+        description_text = response.candidates[0].content.parts[0].text
+        import json
+        description = json.loads(description_text)
+
+        # TODO: When Veo is available, generate actual video here:
+        # from google.cloud import aiplatform
+        # video_response = veo_model.generate_video(prompt=description["shot_description"])
+        # video_uri = upload_to_gcs(video_response)
+
         return jsonify({
-            "videoUri": f"https://storage.googleapis.com/{STORAGE_BUCKET}/generated/placeholder-broll.mp4"
+            "videoUri": f"https://storage.googleapis.com/{STORAGE_BUCKET}/generated/placeholder-broll.mp4",
+            "description": description
         })
     except Exception as e:
+        print(f"B-roll generation error: {e}")
         return jsonify({"error": str(e)}), 500
 
 
